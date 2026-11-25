@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -55,6 +56,7 @@ import com.chencohensolutions.nightlight.FlameModel
 import com.chencohensolutions.nightlight.NightLightController
 import com.chencohensolutions.nightlight.NightLightSettings
 import com.chencohensolutions.nightlight.Rgb
+import com.chencohensolutions.nightlight.blueFilterLabel
 import com.chencohensolutions.nightlight.brightnessLabel
 import com.chencohensolutions.nightlight.warmth
 import com.chencohensolutions.nightlight.warmthLabel
@@ -74,7 +76,11 @@ fun NightLightTheme(content: @Composable () -> Unit) {
 private fun Rgb.toColor() = Color(r, g, b)
 
 @Composable
-fun NightLightScreen(controller: NightLightController) {
+fun NightLightScreen(
+    controller: NightLightController,
+    systemFilterOn: Boolean = false,
+    onTurnOffSystemFilter: () -> Unit = {},
+) {
     val settings by controller.settings.collectAsState()
 
     // Animation clock. Only read inside drawBehind, so frames redraw without recomposing.
@@ -167,6 +173,28 @@ fun NightLightScreen(controller: NightLightController) {
             )
         }
 
+        // The system filter tints on top of the app; offer a one-tap way to switch it off.
+        AnimatedVisibility(
+            visible = systemFilterOn,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 16.dp),
+        ) {
+            Text(
+                text = "Eye comfort shield is on · tap to turn it off",
+                color = Amber,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .clickable(onClick = onTurnOffSystemFilter)
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+            )
+        }
+
         AnimatedVisibility(
             visible = showHint && !controlsVisible,
             enter = fadeIn(),
@@ -194,6 +222,7 @@ fun NightLightScreen(controller: NightLightController) {
                 settings = settings,
                 onBrightness = { controller.setBrightness(it); interaction++ },
                 onWarmth = { controller.setWarmth(it); interaction++ },
+                onBlueFilter = { controller.setBlueFilter(it); interaction++ },
                 onBreathing = { controller.setBreathing(it); interaction++ },
             )
         }
@@ -205,6 +234,7 @@ private fun ControlsPanel(
     settings: NightLightSettings,
     onBrightness: (Float) -> Unit,
     onWarmth: (Float) -> Unit,
+    onBlueFilter: (Float) -> Unit,
     onBreathing: (Breathing) -> Unit,
 ) {
     val shape = RoundedCornerShape(28.dp)
@@ -222,6 +252,8 @@ private fun ControlsPanel(
         LabeledSlider("Brightness", settings.brightnessLabel, settings.brightness, onBrightness)
         Spacer(Modifier.height(4.dp))
         LabeledSlider("Warmth", settings.warmthLabel, settings.warmth, onWarmth)
+        Spacer(Modifier.height(4.dp))
+        LabeledSlider("Blue light filter", settings.blueFilterLabel, settings.blueFilter, onBlueFilter)
         Spacer(Modifier.height(12.dp))
         Text("Breathing", color = Amber, fontSize = 14.sp)
         Spacer(Modifier.height(8.dp))

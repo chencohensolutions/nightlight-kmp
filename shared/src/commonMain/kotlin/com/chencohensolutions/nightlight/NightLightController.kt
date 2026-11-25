@@ -24,7 +24,10 @@ class NightLightController(private val store: SettingsStore) {
 
     fun setBreathing(value: Breathing) = update { copy(breathing = value) }
 
-    fun resetToCandle() = update { NightLightSettings(brightness = brightness) }
+    fun setBlueFilter(value: Float) = update { copy(blueFilter = value) }
+
+    /** Back to candle color; keeps brightness and blue filter. */
+    fun resetToCandle() = update { NightLightSettings(brightness = brightness, blueFilter = blueFilter) }
 
     private inline fun update(change: NightLightSettings.() -> NightLightSettings) {
         val current = _settings.value
@@ -40,3 +43,5 @@ class NightLightController(private val store: SettingsStore) {
 val NightLightSettings.warmth: Float get() = ColorTemperature.kelvinToWarmth(kelvin)
 val NightLightSettings.warmthLabel: String get() = "${ColorTemperature.label(kelvin)} · ${kelvin.toInt()}K"
 val NightLightSettings.brightnessLabel: String get() = "${(brightness * 100).toInt()}%"
+val NightLightSettings.blueFilterLabel: String get() =
+    if (blueFilter < 0.01f) "Off" else "${(blueFilter * 100).toInt()}%"

@@ -1,8 +1,11 @@
 package com.chencohensolutions.nightlight.android
 
 import android.app.Application
+import android.database.ContentObserver
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,6 +14,7 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -52,9 +56,38 @@ class MainActivity : ComponentActivity() {
             }
 
             NightLightTheme {
-                NightLightScreen(viewModel.controller)
+                NightLightScreen(
+                    controller = viewModel.controller,
+                    systemFilterOn = systemFilterOn.value,
+                    onTurnOffSystemFilter = { SystemBlueFilter.openSettings(this) },
+                )
             }
         }
+    }
+
+    // --- System blue light filter (Eye comfort shield) detection ---
+
+    private val systemFilterOn = mutableStateOf(false)
+
+    private val systemFilterObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) = refreshSystemFilter()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        SystemBlueFilter.uris().forEach { uri ->
+            runCatching { contentResolver.registerContentObserver(uri, false, systemFilterObserver) }
+        }
+        refreshSystemFilter()
+    }
+
+    override fun onStop() {
+        contentResolver.unregisterContentObserver(systemFilterObserver)
+        super.onStop()
+    }
+
+    private fun refreshSystemFilter() {
+        systemFilterOn.value = SystemBlueFilter.isOn(this)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

@@ -47,6 +47,24 @@ class NightLightTest {
     }
 
     @Test
+    fun blueFilterRemovesBlueAndWarmsGreen() {
+        val white = ColorTemperature.toRgb(ColorTemperature.MAX_KELVIN)
+        val off = BlueLightFilter.apply(white, 0f)
+        val full = BlueLightFilter.apply(white, 1f)
+        assertEquals(white, off)
+        assertEquals(0f, full.b)
+        assertEquals(white.r, full.r)
+        assertTrue(full.g < white.g)
+    }
+
+    @Test
+    fun filteredFrameIsWarmerThanUnfiltered() {
+        val plain = FlameModel.frame(NightLightSettings(blueFilter = 0f, breathing = Breathing.Off), 0.0)
+        val filtered = FlameModel.frame(NightLightSettings(blueFilter = 1f, breathing = Breathing.Off), 0.0)
+        assertTrue(filtered.core.g / filtered.core.r < plain.core.g / plain.core.r)
+    }
+
+    @Test
     fun controllerClampsAndPersists() {
         val store = object : SettingsStore {
             var saved: NightLightSettings? = null

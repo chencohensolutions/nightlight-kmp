@@ -22,7 +22,7 @@ object FlameModel {
         val kelvin = (s.kelvin - (1f - intensity) * KELVIN_SAG)
             .coerceAtLeast(ColorTemperature.MIN_KELVIN - KELVIN_SAG)
         val gain = Brightness.pixelGain(s.brightness) * intensity
-        val base = ColorTemperature.toRgb(kelvin)
+        val base = BlueLightFilter.apply(ColorTemperature.toRgb(kelvin), s.blueFilter)
         return FlameFrame(core = base * gain, edge = base * (gain * EDGE_RATIO), intensity = intensity)
     }
 

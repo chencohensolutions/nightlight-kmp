@@ -12,9 +12,12 @@ data class NightLightSettings(
     val brightness: Float = 0.5f,
     val kelvin: Float = ColorTemperature.CANDLE_KELVIN,
     val breathing: Breathing = Breathing.Calm,
+    /** In-app blue light reduction, 0 = off, 1 = strongest. */
+    val blueFilter: Float = 0.6f,
 ) {
     fun normalized() = copy(
         brightness = brightness.coerceIn(0f, 1f),
+        blueFilter = blueFilter.coerceIn(0f, 1f),
         kelvin = kelvin.coerceIn(ColorTemperature.MIN_KELVIN, ColorTemperature.MAX_KELVIN),
     )
 }

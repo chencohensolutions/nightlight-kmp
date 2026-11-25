@@ -15,6 +15,7 @@ class SharedPrefsSettingsStore(context: Context) : SettingsStore {
             breathing = prefs.getString(KEY_BREATHING, null)
                 ?.let { name -> Breathing.entries.firstOrNull { it.name == name } }
                 ?: defaults.breathing,
+            blueFilter = prefs.getFloat(KEY_BLUE_FILTER, defaults.blueFilter),
         )
     }
 
@@ -23,6 +24,7 @@ class SharedPrefsSettingsStore(context: Context) : SettingsStore {
             .putFloat(KEY_BRIGHTNESS, settings.brightness)
             .putFloat(KEY_KELVIN, settings.kelvin)
             .putString(KEY_BREATHING, settings.breathing.name)
+            .putFloat(KEY_BLUE_FILTER, settings.blueFilter)
             .apply()
     }
 
@@ -30,5 +32,6 @@ class SharedPrefsSettingsStore(context: Context) : SettingsStore {
         const val KEY_BRIGHTNESS = "brightness"
         const val KEY_KELVIN = "kelvin"
         const val KEY_BREATHING = "breathing"
+        const val KEY_BLUE_FILTER = "blue_filter"
     }
 }
