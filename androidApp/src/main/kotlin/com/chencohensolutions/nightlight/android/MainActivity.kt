@@ -16,6 +16,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.AndroidViewModel
 import com.chencohensolutions.nightlight.Brightness
+import com.chencohensolutions.nightlight.NightLightController
 import com.chencohensolutions.nightlight.SharedPrefsSettingsStore
 
 class NightLightViewModel(app: Application) : AndroidViewModel(app) {
