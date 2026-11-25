@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -82,8 +81,6 @@ private fun Rgb.toColor() = Color(r, g, b)
 @Composable
 fun NightLightScreen(
     controller: NightLightController,
-    systemFilterOn: Boolean = false,
-    onTurnOffSystemFilter: () -> Unit = {},
 ) {
     val settings by controller.settings.collectAsState()
 
@@ -200,28 +197,6 @@ fun NightLightScreen(
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.align(Alignment.Center),
-            )
-        }
-
-        // The system filter tints on top of the app; offer a one-tap way to switch it off.
-        AnimatedVisibility(
-            visible = systemFilterOn,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .statusBarsPadding()
-                .padding(top = 16.dp),
-        ) {
-            Text(
-                text = "Eye comfort shield is on · tap to turn it off",
-                color = Amber,
-                fontSize = 13.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(Color.Black.copy(alpha = 0.55f))
-                    .clickable(onClick = onTurnOffSystemFilter)
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
             )
         }
 

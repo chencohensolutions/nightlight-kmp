@@ -11,7 +11,6 @@ A bedside night light: the screen stays on with a warm, candle-like glow that sl
 - Warm light from 1200 K (ember) to 4000 K (warm white). Defaults to candle (1900 K).
 - Breathing modes: Steady, Slow, Calm, Lively. The light gets slightly redder as it dims, like a real flame, with a subtle non-repeating flicker. Steady mode stops the frame loop to save battery.
 - In-app blue light filter (default 60%): cuts blue fully and green partly, like a system eye-comfort filter, so the light gets more amber.
-- Detects Samsung Eye comfort shield / AOSP Night Light. When it's on, a banner offers one tap to its settings, because apps can't switch it off themselves (no public API).
 - One brightness slider drives both the backlight and the pixel gain, so it can go darker than the system minimum.
 - Settings are saved between launches.
 
