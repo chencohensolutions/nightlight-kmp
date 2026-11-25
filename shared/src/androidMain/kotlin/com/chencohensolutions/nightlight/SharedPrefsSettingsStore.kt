@@ -16,6 +16,7 @@ class SharedPrefsSettingsStore(context: Context) : SettingsStore {
                 ?.let { name -> Breathing.entries.firstOrNull { it.name == name } }
                 ?: defaults.breathing,
             blueFilter = prefs.getFloat(KEY_BLUE_FILTER, defaults.blueFilter),
+            limitTo30Hz = prefs.getBoolean(KEY_LIMIT_30HZ, defaults.limitTo30Hz),
         )
     }
 
@@ -25,6 +26,7 @@ class SharedPrefsSettingsStore(context: Context) : SettingsStore {
             .putFloat(KEY_KELVIN, settings.kelvin)
             .putString(KEY_BREATHING, settings.breathing.name)
             .putFloat(KEY_BLUE_FILTER, settings.blueFilter)
+            .putBoolean(KEY_LIMIT_30HZ, settings.limitTo30Hz)
             .apply()
     }
 
@@ -33,5 +35,6 @@ class SharedPrefsSettingsStore(context: Context) : SettingsStore {
         const val KEY_KELVIN = "kelvin"
         const val KEY_BREATHING = "breathing"
         const val KEY_BLUE_FILTER = "blue_filter"
+        const val KEY_LIMIT_30HZ = "limit_30hz"
     }
 }

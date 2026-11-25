@@ -26,11 +26,15 @@ class NightLightController(private val store: SettingsStore) {
 
     fun setBlueFilter(value: Float) = update { copy(blueFilter = value) }
 
+    fun setLimitTo30Hz(value: Boolean) = update { copy(limitTo30Hz = value) }
+
     /** Undo an in-progress gesture (e.g. the OS took the touch for its back gesture). */
     fun restore(settings: NightLightSettings) = update { settings }
 
-    /** Back to candle color; keeps brightness and blue filter. */
-    fun resetToCandle() = update { NightLightSettings(brightness = brightness, blueFilter = blueFilter) }
+    /** Back to candle color; keeps brightness, blue filter and the frame rate limit. */
+    fun resetToCandle() = update {
+        NightLightSettings(brightness = brightness, blueFilter = blueFilter, limitTo30Hz = limitTo30Hz)
+    }
 
     private inline fun update(change: NightLightSettings.() -> NightLightSettings) {
         val current = _settings.value

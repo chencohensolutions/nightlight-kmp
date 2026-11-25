@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,21 +24,25 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -45,20 +50,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chencohensolutions.nightlight.Breathing
+import com.chencohensolutions.nightlight.FlameAnimator
 import com.chencohensolutions.nightlight.FlameModel
+import com.chencohensolutions.nightlight.FramePacer
 import com.chencohensolutions.nightlight.NightLightController
 import com.chencohensolutions.nightlight.NightLightSettings
-import com.chencohensolutions.nightlight.Rgb
 import com.chencohensolutions.nightlight.blueFilterLabel
 import com.chencohensolutions.nightlight.brightnessLabel
 import com.chencohensolutions.nightlight.warmth
@@ -76,23 +85,36 @@ fun NightLightTheme(content: @Composable () -> Unit) {
     )
 }
 
-private fun Rgb.toColor() = Color(r, g, b)
-
 @Composable
 fun NightLightScreen(
     controller: NightLightController,
+    torch: TorchController? = null,
 ) {
     val settings by controller.settings.collectAsState()
 
-    // Animation clock. Only read inside drawBehind, so frames redraw without recomposing.
-    var time by remember { mutableDoubleStateOf(0.0) }
+    // The current frame is only read while drawing, so the animation repaints without recomposing.
+    val animator = remember { FlameAnimator() }
+    val painter = remember { createGlowPainter() }
+    val latestSettings by rememberUpdatedState(settings)
+    var frame by remember { mutableStateOf(animator.step(0.0, settings)) }
+
+    // Settings changes repaint at once, also in steady mode when no frame loop runs.
+    LaunchedEffect(settings) { frame = animator.step(0.0, settings) }
+
     val animated = FlameModel.isAnimated(settings)
-    LaunchedEffect(animated) {
-        if (!animated) return@LaunchedEffect // steady mode: no frame loop, saves battery
-        val offset = time
-        val start = withFrameNanos { it }
-        while (true) {
-            withFrameNanos { now -> time = offset + (now - start) / 1_000_000_000.0 }
+    val limitTo30Hz = settings.limitTo30Hz
+    LaunchedEffect(animated, limitTo30Hz) {
+        // Every display frame by default; about 30 a second when limited.
+        val pacer = FramePacer(if (limitTo30Hz) FramePacer.BATTERY_SAVER_FPS else 0)
+        var last = withFrameNanos { it }
+        // Steady mode: run only until the light has eased to rest, then stop to save battery.
+        while (animated || !animator.isSettled) {
+            withFrameNanos { now ->
+                if (pacer.shouldRender(now)) {
+                    frame = animator.step((now - last) / 1_000_000_000.0, latestSettings)
+                    last = now
+                }
+            }
         }
     }
 
@@ -128,14 +150,8 @@ fun NightLightScreen(
         modifier = Modifier
             .fillMaxSize()
             .drawBehind {
-                val frame = FlameModel.frame(settings, time)
-                drawRect(
-                    brush = Brush.radialGradient(
-                        colors = listOf(frame.core.toColor(), frame.edge.toColor()),
-                        center = Offset(size.width / 2f, size.height * 0.6f),
-                        radius = size.maxDimension * 0.75f,
-                    ),
-                )
+                val current = frame
+                drawIntoCanvas { painter.draw(it.nativeCanvas, size.width, size.height, current) }
             }
             .pointerInput(Unit) {
                 detectTapGestures(
@@ -223,13 +239,27 @@ fun NightLightScreen(
             exit = fadeOut() + slideOutVertically { it / 3 },
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            ControlsPanel(
-                settings = settings,
-                onBrightness = { controller.setBrightness(it); interaction++ },
-                onWarmth = { controller.setWarmth(it); interaction++ },
-                onBlueFilter = { controller.setBlueFilter(it); interaction++ },
-                onBreathing = { controller.setBreathing(it); interaction++ },
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                if (torch != null && torch.isAvailable) {
+                    val torchOn by torch.isOn.collectAsState()
+                    TorchButton(
+                        on = torchOn,
+                        onClick = {
+                            interaction++
+                            if (!torch.toggle()) showReadout("Flashlight unavailable")
+                        },
+                        modifier = Modifier.padding(end = 16.dp),
+                    )
+                }
+                ControlsPanel(
+                    settings = settings,
+                    onBrightness = { controller.setBrightness(it); interaction++ },
+                    onWarmth = { controller.setWarmth(it); interaction++ },
+                    onBlueFilter = { controller.setBlueFilter(it); interaction++ },
+                    onBreathing = { controller.setBreathing(it); interaction++ },
+                    onLimitTo30Hz = { controller.setLimitTo30Hz(it); interaction++ },
+                )
+            }
         }
     }
 }
@@ -260,6 +290,7 @@ private fun ControlsPanel(
     onWarmth: (Float) -> Unit,
     onBlueFilter: (Float) -> Unit,
     onBreathing: (Breathing) -> Unit,
+    onLimitTo30Hz: (Boolean) -> Unit,
 ) {
     val shape = RoundedCornerShape(28.dp)
     Column(
@@ -290,6 +321,69 @@ private fun ControlsPanel(
                     modifier = Modifier.weight(1f),
                 )
             }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "Limit to 30 Hz (saves battery)",
+                color = Amber,
+                fontSize = 14.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Switch(
+                checked = settings.limitTo30Hz,
+                onCheckedChange = onLimitTo30Hz,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Ink,
+                    checkedTrackColor = Amber,
+                    uncheckedThumbColor = Amber.copy(alpha = 0.7f),
+                    uncheckedTrackColor = Color.Transparent,
+                    uncheckedBorderColor = Amber.copy(alpha = 0.6f),
+                ),
+            )
+        }
+    }
+}
+
+/** Round button for the phone's camera flash; filled amber while the flashlight is on. */
+@Composable
+private fun TorchButton(on: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val tint = if (on) Ink else Amber
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .size(52.dp)
+            .clip(CircleShape)
+            .background(if (on) Amber else Color.Black.copy(alpha = 0.6f))
+            .border(1.dp, Amber.copy(alpha = 0.6f), CircleShape)
+            .clickable(
+                onClickLabel = if (on) "Turn flashlight off" else "Turn flashlight on",
+                role = Role.Button,
+                onClick = onClick,
+            ),
+    ) {
+        Canvas(Modifier.size(26.dp)) {
+            val w = size.width
+            val h = size.height
+            // A flashlight seen from the side: wide head on top, narrower handle below.
+            val body = Path().apply {
+                moveTo(0.26f * w, 0.08f * h)
+                lineTo(0.74f * w, 0.08f * h)
+                lineTo(0.74f * w, 0.26f * h)
+                lineTo(0.61f * w, 0.42f * h)
+                lineTo(0.61f * w, 0.92f * h)
+                lineTo(0.39f * w, 0.92f * h)
+                lineTo(0.39f * w, 0.42f * h)
+                lineTo(0.26f * w, 0.26f * h)
+                close()
+            }
+            drawPath(body, tint)
+            // The switch on the handle, cut out in the button's background color.
+            drawCircle(
+                color = if (on) Amber else Color.Black,
+                radius = 0.055f * w,
+                center = Offset(0.5f * w, 0.58f * h),
+            )
         }
     }
 }

@@ -3,13 +3,24 @@ package com.chencohensolutions.nightlight
 import kotlin.math.ln
 import kotlin.math.pow
 
-/** Linear-ish sRGB color, each channel 0..1. */
+/**
+ * Display-encoded (gamma) sRGB color, each channel 0..1: the values that go to the screen.
+ *
+ * Scaling by k therefore scales perceived lightness by about k, and the emitted light by
+ * about k^2.2 (0.5 is roughly 22 % of the light, not half).
+ */
 data class Rgb(val r: Float, val g: Float, val b: Float) {
     operator fun times(k: Float) = Rgb(
         (r * k).coerceIn(0f, 1f),
         (g * k).coerceIn(0f, 1f),
         (b * k).coerceIn(0f, 1f),
     )
+
+    /** Blend toward [other]: t = 0 is this color, t = 1 is [other]. */
+    fun mix(other: Rgb, t: Float): Rgb {
+        val k = t.coerceIn(0f, 1f)
+        return Rgb(r + (other.r - r) * k, g + (other.g - g) * k, b + (other.b - b) * k)
+    }
 
     /** 0xAARRGGBB, opaque. */
     fun toArgb(): Long {

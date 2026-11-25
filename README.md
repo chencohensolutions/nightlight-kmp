@@ -9,9 +9,13 @@ A bedside night light: the screen stays on with a warm, candle-like glow that sl
 
 - Screen stays on (`FLAG_KEEP_SCREEN_ON`) and runs full-screen immersive.
 - Warm light from 1200 K (ember) to 4000 K (warm white). Defaults to candle (1900 K).
-- Breathing modes: Steady, Slow, Calm, Lively. The light gets slightly redder as it dims, like a real flame, with a subtle non-repeating flicker. Steady mode stops the frame loop to save battery.
+- Breathing modes: Steady, Slow (10 s), Calm (7.5 s), Lively (4.5 s). Each breath rises a little faster than it falls. Changing mode eases from where the breath is, with no jump.
+- Flame feel: the light gets redder as it dims, the glow sways and swells slightly, there is a soft non-repeating flicker, and now and then a gust of air makes it waver. Steady mode stops the frame loop to save battery.
+- Soft glow with a redder halo, dithered so dark gradients don't show bands (per-pixel shader on Android 13+, dithered gradient before that).
+- Renders at the display's top refresh rate (120 Hz where available). "Limit to 30 Hz" in the controls trades that for battery.
+- Flashlight button in the controls toggles the camera flash (no camera permission needed).
 - In-app blue light filter (default 60%): cuts blue fully and green partly, like a system eye-comfort filter, so the light gets more amber.
-- One brightness slider drives both the backlight and the pixel gain, so it can go darker than the system minimum.
+- One brightness slider drives the backlight, the pixel gain and the size of the glow, so it can go darker than the system minimum. The light also gets a little warmer as it dims.
 - Settings are saved between launches.
 
 ## Controls
@@ -26,10 +30,12 @@ A bedside night light: the screen stays on with a warm, candle-like glow that sl
 ## Structure
 
 ```
-shared/src/commonMain/   ColorTemperature, FlameModel, Brightness, NightLightController, NightLightSettings
+shared/src/commonMain/   ColorTemperature, FlameModel (pure flame math), FlameAnimator (phase, easing, frame pacing),
+                         Brightness, NightLightController, NightLightSettings
 shared/src/androidMain/  SharedPrefsSettingsStore
 shared/src/commonTest/   unit tests
-androidApp/              MainActivity (window flags, brightness), NightLightScreen (Compose)
+androidApp/              MainActivity (window flags, brightness, refresh rate), NightLightScreen (Compose),
+                         GlowPainter (shader / gradient rendering), Torch (camera flash)
 ```
 
 ## Build

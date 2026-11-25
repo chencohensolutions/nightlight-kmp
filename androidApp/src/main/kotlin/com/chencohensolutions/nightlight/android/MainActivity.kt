@@ -3,6 +3,7 @@ package com.chencohensolutions.nightlight.android
 import android.app.Application
 import android.os.Build
 import android.os.Bundle
+import android.view.Display
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,11 +17,13 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.AndroidViewModel
 import com.chencohensolutions.nightlight.Brightness
+import com.chencohensolutions.nightlight.FlameModel
 import com.chencohensolutions.nightlight.NightLightController
 import com.chencohensolutions.nightlight.SharedPrefsSettingsStore
 
 class NightLightViewModel(app: Application) : AndroidViewModel(app) {
     val controller = NightLightController(SharedPrefsSettingsStore(app))
+    val torch = TorchController(app)
 }
 
 class MainActivity : ComponentActivity() {
@@ -51,15 +54,92 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            // Breathing: hold the panel at its top refresh rate (or 30 Hz when limited).
+            // Steady: nothing moves, so let the system pick.
+            val animated = FlameModel.isAnimated(settings)
+            LaunchedEffect(animated, settings.limitTo30Hz) {
+                applyRefreshRate(
+                    when {
+                        !animated -> RefreshRate.System
+                        settings.limitTo30Hz -> RefreshRate.Low
+                        else -> RefreshRate.Max
+                    },
+                )
+            }
+
             NightLightTheme {
-                NightLightScreen(viewModel.controller)
+                NightLightScreen(viewModel.controller, viewModel.torch)
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        viewModel.torch.start()
+    }
+
+    override fun onStop() {
+        viewModel.torch.stop()
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        // Leaving the app keeps the flashlight on; closing the app turns off what it turned on.
+        if (isFinishing) viewModel.torch.turnOffIfTurnedOnByApp()
+        super.onDestroy()
+    }
+
+    private enum class RefreshRate { System, Low, Max }
+
+    private fun applyRefreshRate(rate: RefreshRate) {
+        val best = if (rate == RefreshRate.Max) highestRefreshMode() else null
+        window.attributes = window.attributes.apply {
+            when (rate) {
+                RefreshRate.Max -> {
+                    // Pin the fastest mode at the current resolution, so an adaptive (LTPO)
+                    // panel doesn't drop to 60 Hz for content it considers slow.
+                    preferredDisplayModeId = best?.modeId ?: 0
+                    preferredRefreshRate = best?.refreshRate ?: 0f
+                }
+                RefreshRate.Low -> {
+                    preferredDisplayModeId = 0
+                    preferredRefreshRate = LOW_REFRESH_RATE
+                }
+                RefreshRate.System -> {
+                    preferredDisplayModeId = 0
+                    preferredRefreshRate = 0f
+                }
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            // Android 15+ may lower the frame rate of slow animations to save power.
+            // At full rate we opt out; otherwise the default (balanced) behavior is what we want.
+            window.setFrameRatePowerSavingsBalanced(rate != RefreshRate.Max)
+        }
+    }
+
+    private fun highestRefreshMode(): Display.Mode? = try {
+        @Suppress("DEPRECATION")
+        val screen: Display? =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) this.display else windowManager.defaultDisplay
+        val current = screen?.mode
+        screen?.supportedModes
+            ?.filter {
+                current == null ||
+                    (it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight)
+            }
+            ?.maxByOrNull { it.refreshRate }
+    } catch (e: Exception) {
+        null
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) hideSystemBars()
+    }
+
+    private companion object {
+        const val LOW_REFRESH_RATE = 30f
     }
 
     private fun hideSystemBars() {
