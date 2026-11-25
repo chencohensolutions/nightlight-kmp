@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -47,6 +49,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -121,6 +125,8 @@ fun NightLightScreen(
         readoutTick++
     }
 
+    val edges = rememberGestureEdges()
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -146,16 +152,40 @@ fun NightLightScreen(
                     },
                 )
             }
-            .pointerInput(Unit) {
-                detectVerticalDragGestures { change, dy ->
+            // Swipes ignore touches that start in the OS gesture zones (back on the
+            // sides, home/shade at bottom/top), and revert if the OS takes the touch over.
+            .pointerInput(edges) {
+                var active = false
+                var before: NightLightSettings? = null
+                detectVerticalDragGestures(
+                    onDragStart = { start ->
+                        active = start.y > edges.top && start.y < size.height - edges.bottom &&
+                            start.x > edges.left && start.x < size.width - edges.right
+                        before = controller.settings.value
+                    },
+                    onDragCancel = { if (active) before?.let(controller::restore); active = false },
+                    onDragEnd = { active = false },
+                ) { change, dy ->
+                    if (!active) return@detectVerticalDragGestures
                     change.consume()
                     controller.nudgeBrightness(-dy / size.height)
                     interaction++
                     if (!controlsVisible) showReadout("Brightness ${controller.settings.value.brightnessLabel}")
                 }
             }
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures { change, dx ->
+            .pointerInput(edges) {
+                var active = false
+                var before: NightLightSettings? = null
+                detectHorizontalDragGestures(
+                    onDragStart = { start ->
+                        active = start.x > edges.left && start.x < size.width - edges.right &&
+                            start.y > edges.top && start.y < size.height - edges.bottom
+                        before = controller.settings.value
+                    },
+                    onDragCancel = { if (active) before?.let(controller::restore); active = false },
+                    onDragEnd = { active = false },
+                ) { change, dx ->
+                    if (!active) return@detectHorizontalDragGestures
                     change.consume()
                     controller.nudgeWarmth(dx / size.width)
                     interaction++
@@ -227,6 +257,25 @@ fun NightLightScreen(
             )
         }
     }
+}
+
+/** Edge zones (px) owned by OS gestures. */
+private data class GestureEdges(val left: Float, val top: Float, val right: Float, val bottom: Float)
+
+@Composable
+private fun rememberGestureEdges(): GestureEdges {
+    val density = LocalDensity.current
+    val dir = LocalLayoutDirection.current
+    val insets = WindowInsets.systemGestures
+    // Insets can report 0 in immersive mode, so keep a minimum that covers
+    // Samsung's back-gesture zone at high sensitivity.
+    val minSide = with(density) { 40.dp.toPx() }
+    val minTopBottom = with(density) { 48.dp.toPx() }
+    val left = maxOf(insets.getLeft(density, dir).toFloat(), minSide)
+    val right = maxOf(insets.getRight(density, dir).toFloat(), minSide)
+    val top = maxOf(insets.getTop(density).toFloat(), minTopBottom)
+    val bottom = maxOf(insets.getBottom(density).toFloat(), minTopBottom)
+    return remember(left, top, right, bottom) { GestureEdges(left, top, right, bottom) }
 }
 
 @Composable

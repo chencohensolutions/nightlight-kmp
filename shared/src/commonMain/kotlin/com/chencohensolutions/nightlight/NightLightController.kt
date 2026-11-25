@@ -26,6 +26,9 @@ class NightLightController(private val store: SettingsStore) {
 
     fun setBlueFilter(value: Float) = update { copy(blueFilter = value) }
 
+    /** Undo an in-progress gesture (e.g. the OS took the touch for its back gesture). */
+    fun restore(settings: NightLightSettings) = update { settings }
+
     /** Back to candle color; keeps brightness and blue filter. */
     fun resetToCandle() = update { NightLightSettings(brightness = brightness, blueFilter = blueFilter) }
 
